@@ -77,12 +77,12 @@ export function ContentIdeasGrid({ ideas, onSelectIdea, selectedIdeaId }: Conten
               
               <div className="space-y-1">
                 <p className="text-xs font-medium text-muted-foreground">Hook:</p>
-                <p className="text-sm text-foreground line-clamp-2">{idea.hook}</p>
+                <p className="text-sm text-foreground line-clamp-2" data-testid={`text-idea-hook-${idea.id}`}>{idea.hook}</p>
               </div>
 
               <div className="space-y-1">
                 <p className="text-xs font-medium text-muted-foreground">Angle:</p>
-                <p className="text-sm text-foreground line-clamp-2">{idea.angle}</p>
+                <p className="text-sm text-foreground line-clamp-2" data-testid={`text-idea-angle-${idea.id}`}>{idea.angle}</p>
               </div>
             </div>
 

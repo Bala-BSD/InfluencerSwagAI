@@ -67,6 +67,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const validatedData = generateScriptRequestSchema.parse(req.body);
       const script = await aiService.generateScript(validatedData);
+      
+      // Save to storage
+      await storage.saveScript(validatedData.ideaId, validatedData.duration, script);
+      
       res.json(script);
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -78,11 +82,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get script for specific idea and duration
+  app.get("/api/content/script/:ideaId/:duration", async (req, res) => {
+    try {
+      const { ideaId, duration } = req.params;
+      const script = await storage.getScript(ideaId, duration);
+      
+      if (!script) {
+        res.status(404).json({ error: "Script not found" });
+        return;
+      }
+      
+      res.json(script);
+    } catch (error) {
+      console.error("Error fetching script:", error);
+      res.status(500).json({ error: "Failed to fetch script" });
+    }
+  });
+
   // Generate hashtags for specific idea
   app.post("/api/content/hashtags", async (req, res) => {
     try {
       const validatedData = generateHashtagsRequestSchema.parse(req.body);
       const hashtags = await aiService.generateHashtags(validatedData);
+      
+      // Save to storage using ideaId
+      await storage.saveHashtags(validatedData.ideaId, hashtags);
+      
       res.json(hashtags);
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -91,6 +117,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.error("Error generating hashtags:", error);
         res.status(500).json({ error: "Failed to generate hashtags" });
       }
+    }
+  });
+
+  // Get hashtags for specific idea
+  app.get("/api/content/hashtags/:ideaId", async (req, res) => {
+    try {
+      const { ideaId } = req.params;
+      const hashtags = await storage.getHashtags(ideaId);
+      
+      if (!hashtags) {
+        res.status(404).json({ error: "Hashtags not found" });
+        return;
+      }
+      
+      res.json(hashtags);
+    } catch (error) {
+      console.error("Error fetching hashtags:", error);
+      res.status(500).json({ error: "Failed to fetch hashtags" });
     }
   });
 

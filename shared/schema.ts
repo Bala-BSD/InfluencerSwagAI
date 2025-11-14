@@ -134,6 +134,7 @@ export const generateScriptRequestSchema = z.object({
 export type GenerateScriptRequest = z.infer<typeof generateScriptRequestSchema>;
 
 export const generateHashtagsRequestSchema = z.object({
+  ideaId: z.string(),
   ideaTitle: z.string(),
   productName: z.string(),
   funnelStage: z.string(),

@@ -103,7 +103,7 @@ export function HashtagStrategyDisplay({ strategy }: HashtagStrategyDisplayProps
                   key={index}
                   variant="outline"
                   className={category.color}
-                  data-testid={`badge-hashtag-${hashtag.replace('#', '')}`}
+                  data-testid={`badge-hashtag-${category.title.toLowerCase().replace(' ', '-')}-${index}`}
                 >
                   {hashtag}
                 </Badge>

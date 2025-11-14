@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { StudioHeader } from "@/components/studio-header";
 import { StepIndicator } from "@/components/step-indicator";
@@ -66,47 +66,64 @@ export default function Studio() {
   });
 
   const generateScriptMutation = useMutation({
-    mutationFn: async () => {
-      if (!selectedIdea) return;
+    mutationFn: async ({ idea, duration }: { idea: ContentIdea; duration: string }) => {
       const response = await apiRequest("POST", "/api/content/script", {
-        ideaId: selectedIdea.id,
-        ideaTitle: selectedIdea.title,
-        ideaHook: selectedIdea.hook,
-        ideaAngle: selectedIdea.angle,
+        ideaId: idea.id,
+        ideaTitle: idea.title,
+        ideaHook: idea.hook,
+        ideaAngle: idea.angle,
         productName: formData.productName,
-        duration: selectedDuration,
+        duration,
         contentStyle: formData.contentStyle,
       });
-      return response as Script;
+      return { script: response as Script, ideaId: idea.id, duration };
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/content/script', selectedIdea?.id, selectedDuration] });
+    onSuccess: (data) => {
+      // Populate cache with generated script using the IDs from mutation context
+      queryClient.setQueryData(['/api/content/script', data.ideaId, data.duration], data.script);
     },
   });
 
-  const { data: script } = useQuery<Script>({
+  const { data: script, refetch: refetchScript } = useQuery<Script>({
     queryKey: ['/api/content/script', selectedIdea?.id, selectedDuration],
-    enabled: !!selectedIdea,
+    queryFn: async () => {
+      const response = await fetch(`/api/content/script/${selectedIdea?.id}/${selectedDuration}`);
+      if (!response.ok) {
+        if (response.status === 404) return null;
+        throw new Error('Failed to fetch script');
+      }
+      return response.json();
+    },
+    enabled: false,
   });
 
   const generateHashtagsMutation = useMutation({
-    mutationFn: async () => {
-      if (!selectedIdea) return;
+    mutationFn: async ({ idea }: { idea: ContentIdea }) => {
       const response = await apiRequest("POST", "/api/content/hashtags", {
-        ideaTitle: selectedIdea.title,
+        ideaId: idea.id,
+        ideaTitle: idea.title,
         productName: formData.productName,
-        funnelStage: selectedIdea.funnelStage,
+        funnelStage: idea.funnelStage,
       });
-      return response as HashtagStrategy;
+      return { hashtags: response as HashtagStrategy, ideaId: idea.id };
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/content/hashtags', selectedIdea?.id] });
+    onSuccess: (data) => {
+      // Populate cache with generated hashtags using the ID from mutation context
+      queryClient.setQueryData(['/api/content/hashtags', data.ideaId], data.hashtags);
     },
   });
 
-  const { data: hashtags } = useQuery<HashtagStrategy>({
+  const { data: hashtags, refetch: refetchHashtags } = useQuery<HashtagStrategy>({
     queryKey: ['/api/content/hashtags', selectedIdea?.id],
-    enabled: !!selectedIdea,
+    queryFn: async () => {
+      const response = await fetch(`/api/content/hashtags/${selectedIdea?.id}`);
+      if (!response.ok) {
+        if (response.status === 404) return null;
+        throw new Error('Failed to fetch hashtags');
+      }
+      return response.json();
+    },
+    enabled: false,
   });
 
   const handleProductSubmit = (data: any) => {
@@ -123,15 +140,47 @@ export default function Studio() {
     generateContentMutation.mutate(formData);
   };
 
-  const handleSelectIdea = (idea: ContentIdea) => {
+  const handleSelectIdea = async (idea: ContentIdea) => {
     setSelectedIdea(idea);
-    if (!script) {
-      generateScriptMutation.mutate();
+    
+    // Check cache for script, generate if not present
+    try {
+      const cachedScript = queryClient.getQueryData(['/api/content/script', idea.id, selectedDuration]);
+      if (!cachedScript) {
+        await generateScriptMutation.mutateAsync({ idea, duration: selectedDuration });
+      }
+    } catch (error) {
+      console.error('Error generating script:', error);
     }
-    if (!hashtags) {
-      generateHashtagsMutation.mutate();
+    
+    // Check cache for hashtags, generate if not present
+    try {
+      const cachedHashtags = queryClient.getQueryData(['/api/content/hashtags', idea.id]);
+      if (!cachedHashtags) {
+        await generateHashtagsMutation.mutateAsync({ idea });
+      }
+    } catch (error) {
+      console.error('Error generating hashtags:', error);
     }
   };
+
+  // Generate script when duration changes if not in cache
+  useEffect(() => {
+    if (selectedIdea) {
+      const generateIfMissing = async () => {
+        try {
+          const cachedScript = queryClient.getQueryData(['/api/content/script', selectedIdea.id, selectedDuration]);
+          if (!cachedScript) {
+            await generateScriptMutation.mutateAsync({ idea: selectedIdea, duration: selectedDuration });
+          }
+        } catch (error) {
+          console.error('Error generating script on duration change:', error);
+        }
+      };
+      
+      generateIfMissing();
+    }
+  }, [selectedDuration, selectedIdea]);
 
   const handleExportPackage = () => {
     if (!contentPackage) return;
