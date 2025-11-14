@@ -68,8 +68,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const validatedData = generateScriptRequestSchema.parse(req.body);
       const script = await aiService.generateScript(validatedData);
       
-      // Save to storage
-      await storage.saveScript(validatedData.ideaId, validatedData.duration, script);
+      // Save to storage with projectId
+      await storage.saveScript(validatedData.ideaId, validatedData.duration, script, validatedData.projectId);
       
       res.json(script);
     } catch (error) {
@@ -106,8 +106,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const validatedData = generateHashtagsRequestSchema.parse(req.body);
       const hashtags = await aiService.generateHashtags(validatedData);
       
-      // Save to storage using ideaId
-      await storage.saveHashtags(validatedData.ideaId, hashtags);
+      // Save to storage with projectId
+      await storage.saveHashtags(validatedData.ideaId, hashtags, validatedData.projectId);
       
       res.json(hashtags);
     } catch (error) {
@@ -135,6 +135,62 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error fetching hashtags:", error);
       res.status(500).json({ error: "Failed to fetch hashtags" });
+    }
+  });
+
+  // Project management routes
+  app.get("/api/projects", async (req, res) => {
+    try {
+      const projects = await storage.getAllProjects();
+      res.json(projects);
+    } catch (error) {
+      console.error("Error fetching projects:", error);
+      res.status(500).json({ error: "Failed to fetch projects" });
+    }
+  });
+
+  app.get("/api/projects/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const project = await storage.getContentProject(id);
+      
+      if (!project) {
+        res.status(404).json({ error: "Project not found" });
+        return;
+      }
+      
+      res.json(project);
+    } catch (error) {
+      console.error("Error fetching project:", error);
+      res.status(500).json({ error: "Failed to fetch project" });
+    }
+  });
+
+  app.patch("/api/projects/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const updated = await storage.updateProject(id, req.body);
+      
+      if (!updated) {
+        res.status(404).json({ error: "Project not found" });
+        return;
+      }
+      
+      res.json(updated);
+    } catch (error) {
+      console.error("Error updating project:", error);
+      res.status(500).json({ error: "Failed to update project" });
+    }
+  });
+
+  app.delete("/api/projects/:id", async (req, res) => {
+    try {
+      const { id } = req.params;
+      await storage.deleteProject(id);
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error deleting project:", error);
+      res.status(500).json({ error: "Failed to delete project" });
     }
   });
 

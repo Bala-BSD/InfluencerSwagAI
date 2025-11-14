@@ -69,6 +69,7 @@ export default function Studio() {
     mutationFn: async ({ idea, duration }: { idea: ContentIdea; duration: string }) => {
       const response = await apiRequest("POST", "/api/content/script", {
         ideaId: idea.id,
+        projectId: idea.projectId,
         ideaTitle: idea.title,
         ideaHook: idea.hook,
         ideaAngle: idea.angle,
@@ -101,6 +102,7 @@ export default function Studio() {
     mutationFn: async ({ idea }: { idea: ContentIdea }) => {
       const response = await apiRequest("POST", "/api/content/hashtags", {
         ideaId: idea.id,
+        projectId: idea.projectId,
         ideaTitle: idea.title,
         productName: formData.productName,
         funnelStage: idea.funnelStage,
