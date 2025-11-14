@@ -4,7 +4,7 @@ import { ContentProject } from "@shared/schema";
 
 export function useProject() {
   const [match, params] = useRoute("/projects/:projectId");
-  const projectId = match && params?.projectId ? Number(params.projectId) : null;
+  const projectId = match && params?.projectId ? params.projectId : null;
 
   const query = useQuery<ContentProject>({
     queryKey: ["/api/projects", projectId],

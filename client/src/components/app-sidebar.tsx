@@ -39,7 +39,7 @@ export function AppSidebar() {
   });
 
   const deleteProjectMutation = useMutation({
-    mutationFn: async (projectId: number) => {
+    mutationFn: async (projectId: string) => {
       const response = await fetch(`/api/projects/${projectId}`, {
         method: "DELETE",
       });
@@ -160,7 +160,7 @@ export function AppSidebar() {
           <AlertDialogFooter>
             <AlertDialogCancel data-testid="button-cancel-delete">Cancel</AlertDialogCancel>
             <AlertDialogAction
-              onClick={() => projectToDelete && deleteProjectMutation.mutate(Number(projectToDelete.id))}
+              onClick={() => projectToDelete && deleteProjectMutation.mutate(projectToDelete.id)}
               data-testid="button-confirm-delete"
             >
               Delete

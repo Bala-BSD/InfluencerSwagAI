@@ -149,6 +149,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.post("/api/projects", async (req, res) => {
+    try {
+      const project = await storage.createContentProject(req.body);
+      res.status(201).json(project);
+    } catch (error) {
+      console.error("Error creating project:", error);
+      res.status(500).json({ error: "Failed to create project" });
+    }
+  });
+
   app.get("/api/projects/:id", async (req, res) => {
     try {
       const { id } = req.params;

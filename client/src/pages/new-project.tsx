@@ -55,7 +55,8 @@ export default function NewProject() {
       });
       setLocation(`/projects/${project.id}`);
     },
-    onError: () => {
+    onError: (error: any) => {
+      console.error("Project creation error:", error);
       toast({
         title: "Error",
         description: "Failed to create project. Please try again.",
@@ -76,6 +77,28 @@ export default function NewProject() {
 
   const handleStyleSubmit = async () => {
     if (!formData.contentStyle) return;
+    
+    // Ensure all required fields are present
+    if (!formData.productName || !formData.productDescription || !formData.targetAudience || !formData.brandVoice) {
+      toast({
+        title: "Error",
+        description: "Please fill in all product details",
+        variant: "destructive",
+      });
+      setCurrentStep(1);
+      return;
+    }
+    
+    if (!formData.campaignObjective) {
+      toast({
+        title: "Error",
+        description: "Please select a campaign objective",
+        variant: "destructive",
+      });
+      setCurrentStep(2);
+      return;
+    }
+    
     await createProjectMutation.mutateAsync(formData);
   };
 
@@ -162,8 +185,13 @@ export default function NewProject() {
                   </div>
                   <StyleArchetypeSelector
                     value={formData.contentStyle || ""}
-                    onChange={(value) => setFormData((prev: ProjectFormData) => ({ ...prev, contentStyle: value }))}
-                    onContinue={handleStyleSubmit}
+                    onChange={(value) => {
+                      setFormData((prev: ProjectFormData) => ({ ...prev, contentStyle: value }));
+                    }}
+                    onContinue={() => {
+                      // Use a slight delay to ensure state has updated
+                      setTimeout(handleStyleSubmit, 0);
+                    }}
                   />
                 </div>
               )}

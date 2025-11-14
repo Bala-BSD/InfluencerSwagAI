@@ -1,6 +1,10 @@
 import { Sparkles } from "lucide-react";
 
-export function StudioHeader() {
+interface StudioHeaderProps {
+  projectName?: string;
+}
+
+export function StudioHeader({ projectName }: StudioHeaderProps) {
   return (
     <header className="border-b bg-card" data-testid="header-studio">
       <div className="mx-auto max-w-7xl px-6 md:px-8">
@@ -10,7 +14,9 @@ export function StudioHeader() {
               <Sparkles className="h-5 w-5 text-primary-foreground" />
             </div>
             <div>
-              <h1 className="text-lg font-bold tracking-tight" data-testid="text-app-title">Content SwaG</h1>
+              <h1 className="text-lg font-bold tracking-tight" data-testid="text-app-title">
+                {projectName || "Content SwaG"}
+              </h1>
               <p className="text-xs text-muted-foreground" data-testid="text-app-subtitle">AI Content Studio</p>
             </div>
           </div>

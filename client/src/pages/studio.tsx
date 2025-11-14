@@ -1,51 +1,101 @@
 import { useState, useEffect } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import { useProject } from "@/hooks/use-project";
 import { StudioHeader } from "@/components/studio-header";
-import { StepIndicator } from "@/components/step-indicator";
-import { ProductDefinitionForm } from "@/components/product-definition-form";
-import { ObjectiveSelector } from "@/components/objective-selector";
-import { StyleArchetypeSelector } from "@/components/style-archetype-selector";
 import { ContentIdeasGrid } from "@/components/content-ideas-grid";
 import { ScriptDisplay } from "@/components/script-display";
 import { HashtagStrategyDisplay } from "@/components/hashtag-strategy-display";
 import { TrendInsightsDisplay } from "@/components/trend-insights-display";
 import { GeneratingContent, ContentIdeasSkeleton } from "@/components/loading-skeleton";
-import { Card } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { ContentIdea, ContentPackage, Script, HashtagStrategy } from "@shared/schema";
-import { ArrowLeft, Download } from "lucide-react";
+import { ContentIdea, ContentPackage, Script, HashtagStrategy, insertContentProjectSchema } from "@shared/schema";
+import { Download, Edit, Sparkles } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
-const steps = [
-  { id: 1, title: "Product Definition", description: "Define your product and brand" },
-  { id: 2, title: "Campaign Objective", description: "Choose your content goal" },
-  { id: 3, title: "Content Style", description: "Select your creator archetype" },
-  { id: 4, title: "Review & Generate", description: "Generate content package" },
-];
+const updateProjectSchema = insertContentProjectSchema.partial();
 
 export default function Studio() {
-  const [currentStep, setCurrentStep] = useState(1);
-  const [formData, setFormData] = useState({
-    productName: "",
-    productDescription: "",
-    targetAudience: "",
-    brandVoice: "",
-    campaignObjective: "" as "awareness" | "engagement" | "conversion" | "retention",
-    contentStyle: "" as "relatable_peer" | "expert_authority" | "aspirational_leader" | "problem_solver" | "entertainer" | "educator",
-  });
+  const { projectId, project, isLoading, error } = useProject();
   const [selectedIdea, setSelectedIdea] = useState<ContentIdea | null>(null);
   const [selectedDuration, setSelectedDuration] = useState<"15" | "30" | "60">("30");
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
   const { toast } = useToast();
 
+  const form = useForm({
+    resolver: zodResolver(updateProjectSchema),
+    defaultValues: {
+      productName: "",
+      productDescription: "",
+      targetAudience: "",
+      brandVoice: "",
+      campaignObjective: "" as "awareness" | "engagement" | "conversion" | "retention",
+      contentStyle: "" as "relatable_peer" | "expert_authority" | "aspirational_leader" | "problem_solver" | "entertainer" | "educator",
+    },
+  });
+
+  useEffect(() => {
+    if (project) {
+      form.reset({
+        productName: project.productName,
+        productDescription: project.productDescription,
+        targetAudience: project.targetAudience,
+        brandVoice: project.brandVoice,
+        campaignObjective: project.campaignObjective,
+        contentStyle: project.contentStyle,
+      });
+    }
+  }, [project, form]);
+
+  const updateProjectMutation = useMutation({
+    mutationFn: async (data: z.infer<typeof updateProjectSchema>) => {
+      if (!projectId) throw new Error("No project ID");
+      return await apiRequest("PATCH", `/api/projects/${projectId}`, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/projects", projectId] });
+      setEditDialogOpen(false);
+      toast({
+        title: "Project updated",
+        description: "Your project details have been saved",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Update failed",
+        description: "Failed to update project details",
+        variant: "destructive",
+      });
+    },
+  });
+
   const generateContentMutation = useMutation({
-    mutationFn: async (data: typeof formData) => {
-      const response = await apiRequest("POST", "/api/content/generate", data);
+    mutationFn: async () => {
+      if (!project) throw new Error("No project loaded");
+      const response = await apiRequest("POST", "/api/content/generate", {
+        productName: project.productName,
+        productDescription: project.productDescription,
+        targetAudience: project.targetAudience,
+        brandVoice: project.brandVoice,
+        campaignObjective: project.campaignObjective,
+        contentStyle: project.contentStyle,
+      });
       return response as ContentPackage;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/content/package'] });
+      if (projectId) {
+        queryClient.invalidateQueries({ queryKey: ["/api/content/package", projectId] });
+      }
       toast({
         title: "Content generated!",
         description: "Your AI-powered content package is ready",
@@ -61,37 +111,37 @@ export default function Studio() {
   });
 
   const { data: contentPackage, isLoading: isLoadingPackage } = useQuery<ContentPackage>({
-    queryKey: ['/api/content/package'],
-    enabled: generateContentMutation.isSuccess,
+    queryKey: ["/api/content/package", projectId],
+    enabled: !!projectId && generateContentMutation.isSuccess,
   });
 
   const generateScriptMutation = useMutation({
     mutationFn: async ({ idea, duration }: { idea: ContentIdea; duration: string }) => {
+      if (!project) throw new Error("No project loaded");
       const response = await apiRequest("POST", "/api/content/script", {
         ideaId: idea.id,
         projectId: idea.projectId,
         ideaTitle: idea.title,
         ideaHook: idea.hook,
         ideaAngle: idea.angle,
-        productName: formData.productName,
+        productName: project.productName,
         duration,
-        contentStyle: formData.contentStyle,
+        contentStyle: project.contentStyle,
       });
       return { script: response as Script, ideaId: idea.id, duration };
     },
     onSuccess: (data) => {
-      // Populate cache with generated script using the IDs from mutation context
-      queryClient.setQueryData(['/api/content/script', data.ideaId, data.duration], data.script);
+      queryClient.setQueryData(["/api/content/script", data.ideaId, data.duration], data.script);
     },
   });
 
-  const { data: script, refetch: refetchScript } = useQuery<Script>({
-    queryKey: ['/api/content/script', selectedIdea?.id, selectedDuration],
+  const { data: script } = useQuery<Script>({
+    queryKey: ["/api/content/script", selectedIdea?.id, selectedDuration],
     queryFn: async () => {
       const response = await fetch(`/api/content/script/${selectedIdea?.id}/${selectedDuration}`);
       if (!response.ok) {
         if (response.status === 404) return null;
-        throw new Error('Failed to fetch script');
+        throw new Error("Failed to fetch script");
       }
       return response.json();
     },
@@ -100,93 +150,76 @@ export default function Studio() {
 
   const generateHashtagsMutation = useMutation({
     mutationFn: async ({ idea }: { idea: ContentIdea }) => {
+      if (!project) throw new Error("No project loaded");
       const response = await apiRequest("POST", "/api/content/hashtags", {
         ideaId: idea.id,
         projectId: idea.projectId,
         ideaTitle: idea.title,
-        productName: formData.productName,
+        productName: project.productName,
         funnelStage: idea.funnelStage,
       });
       return { hashtags: response as HashtagStrategy, ideaId: idea.id };
     },
     onSuccess: (data) => {
-      // Populate cache with generated hashtags using the ID from mutation context
-      queryClient.setQueryData(['/api/content/hashtags', data.ideaId], data.hashtags);
+      queryClient.setQueryData(["/api/content/hashtags", data.ideaId], data.hashtags);
     },
   });
 
-  const { data: hashtags, refetch: refetchHashtags } = useQuery<HashtagStrategy>({
-    queryKey: ['/api/content/hashtags', selectedIdea?.id],
+  const { data: hashtags } = useQuery<HashtagStrategy>({
+    queryKey: ["/api/content/hashtags", selectedIdea?.id],
     queryFn: async () => {
       const response = await fetch(`/api/content/hashtags/${selectedIdea?.id}`);
       if (!response.ok) {
         if (response.status === 404) return null;
-        throw new Error('Failed to fetch hashtags');
+        throw new Error("Failed to fetch hashtags");
       }
       return response.json();
     },
     enabled: false,
   });
 
-  const handleProductSubmit = (data: any) => {
-    setFormData((prev) => ({ ...prev, ...data }));
-    setCurrentStep(2);
-  };
-
-  const handleObjectiveContinue = () => {
-    setCurrentStep(3);
-  };
-
-  const handleStyleContinue = () => {
-    setCurrentStep(4);
-    generateContentMutation.mutate(formData);
-  };
-
   const handleSelectIdea = async (idea: ContentIdea) => {
     setSelectedIdea(idea);
-    
-    // Check cache for script, generate if not present
+
     try {
-      const cachedScript = queryClient.getQueryData(['/api/content/script', idea.id, selectedDuration]);
+      const cachedScript = queryClient.getQueryData(["/api/content/script", idea.id, selectedDuration]);
       if (!cachedScript) {
         await generateScriptMutation.mutateAsync({ idea, duration: selectedDuration });
       }
     } catch (error) {
-      console.error('Error generating script:', error);
+      console.error("Error generating script:", error);
     }
-    
-    // Check cache for hashtags, generate if not present
+
     try {
-      const cachedHashtags = queryClient.getQueryData(['/api/content/hashtags', idea.id]);
+      const cachedHashtags = queryClient.getQueryData(["/api/content/hashtags", idea.id]);
       if (!cachedHashtags) {
         await generateHashtagsMutation.mutateAsync({ idea });
       }
     } catch (error) {
-      console.error('Error generating hashtags:', error);
+      console.error("Error generating hashtags:", error);
     }
   };
 
-  // Generate script when duration changes if not in cache
   useEffect(() => {
     if (selectedIdea) {
       const generateIfMissing = async () => {
         try {
-          const cachedScript = queryClient.getQueryData(['/api/content/script', selectedIdea.id, selectedDuration]);
+          const cachedScript = queryClient.getQueryData(["/api/content/script", selectedIdea.id, selectedDuration]);
           if (!cachedScript) {
             await generateScriptMutation.mutateAsync({ idea: selectedIdea, duration: selectedDuration });
           }
         } catch (error) {
-          console.error('Error generating script on duration change:', error);
+          console.error("Error generating script on duration change:", error);
         }
       };
-      
+
       generateIfMissing();
     }
   }, [selectedDuration, selectedIdea]);
 
   const handleExportPackage = () => {
-    if (!contentPackage) return;
-    
+    if (!contentPackage || !project) return;
+
     const exportData = {
       product: contentPackage.project,
       ideas: contentPackage.ideas,
@@ -196,11 +229,11 @@ export default function Studio() {
       hashtags: hashtags,
     };
 
-    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
+    const a = document.createElement("a");
     a.href = url;
-    a.download = `content-package-${formData.productName.replace(/\s+/g, '-').toLowerCase()}.json`;
+    a.download = `content-package-${project.productName.replace(/\s+/g, "-").toLowerCase()}.json`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -212,183 +245,315 @@ export default function Studio() {
     });
   };
 
-  return (
-    <div className="min-h-screen bg-background">
-      <StudioHeader />
+  const handleUpdateProject = (data: z.infer<typeof updateProjectSchema>) => {
+    updateProjectMutation.mutate(data);
+  };
 
-      <main className="mx-auto max-w-7xl px-6 py-8 md:px-8">
-        <div className="grid gap-8 lg:grid-cols-[280px_1fr]">
-          {/* Step Indicator Sidebar */}
-          <div className="hidden lg:block">
-            <div className="sticky top-8">
-              <StepIndicator steps={steps} currentStep={currentStep} />
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-background">
+        <StudioHeader />
+        <main className="mx-auto max-w-7xl px-6 py-8 md:px-8">
+          <div className="flex items-center justify-center min-h-[400px]">
+            <div className="text-center space-y-4">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
+              <p className="text-muted-foreground" data-testid="text-loading">Loading project...</p>
             </div>
           </div>
+        </main>
+      </div>
+    );
+  }
 
-          {/* Main Content */}
-          <div className="space-y-6">
-            {currentStep < 4 && (
-              <Card className="p-8" data-testid="card-step-form">
-                {currentStep === 1 && (
-                  <div className="space-y-6">
-                    <div>
-                      <h2 className="text-2xl font-bold tracking-tight" data-testid="text-step-1-title">Product Definition</h2>
-                      <p className="text-muted-foreground mt-2" data-testid="text-step-1-description">
-                        Tell us about your product and brand identity
-                      </p>
-                    </div>
-                    <ProductDefinitionForm
-                      onSubmit={handleProductSubmit}
-                      defaultValues={formData}
-                    />
-                  </div>
-                )}
+  if (error || !project) {
+    return (
+      <div className="min-h-screen bg-background">
+        <StudioHeader />
+        <main className="mx-auto max-w-7xl px-6 py-8 md:px-8">
+          <div className="flex items-center justify-center min-h-[400px]">
+            <div className="text-center space-y-4">
+              <h2 className="text-2xl font-bold tracking-tight" data-testid="text-error-title">Project Not Found</h2>
+              <p className="text-muted-foreground" data-testid="text-error-message">
+                The project you're looking for doesn't exist or has been deleted.
+              </p>
+              <Button asChild data-testid="button-back-projects">
+                <a href="/projects">Back to Projects</a>
+              </Button>
+            </div>
+          </div>
+        </main>
+      </div>
+    );
+  }
 
-                {currentStep === 2 && (
-                  <div className="space-y-6">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h2 className="text-2xl font-bold tracking-tight" data-testid="text-step-2-title">Campaign Objective</h2>
-                        <p className="text-muted-foreground mt-2" data-testid="text-step-2-description">
-                          What's your primary content goal?
-                        </p>
-                      </div>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setCurrentStep(1)}
-                        className="gap-2"
-                        data-testid="button-back-to-product"
-                      >
-                        <ArrowLeft className="h-4 w-4" />
-                        Back
-                      </Button>
-                    </div>
-                    <ObjectiveSelector
-                      value={formData.campaignObjective}
-                      onChange={(value) => setFormData((prev) => ({ ...prev, campaignObjective: value }))}
-                      onContinue={handleObjectiveContinue}
-                    />
-                  </div>
-                )}
+  return (
+    <div className="min-h-screen bg-background">
+      <StudioHeader projectName={project.productName} />
 
-                {currentStep === 3 && (
-                  <div className="space-y-6">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h2 className="text-2xl font-bold tracking-tight" data-testid="text-step-3-title">Content Style</h2>
-                        <p className="text-muted-foreground mt-2" data-testid="text-step-3-description">
-                          Choose your creator archetype
-                        </p>
-                      </div>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setCurrentStep(2)}
-                        className="gap-2"
-                        data-testid="button-back-to-objective"
-                      >
-                        <ArrowLeft className="h-4 w-4" />
-                        Back
-                      </Button>
-                    </div>
-                    <StyleArchetypeSelector
-                      value={formData.contentStyle}
-                      onChange={(value) => setFormData((prev) => ({ ...prev, contentStyle: value }))}
-                      onContinue={handleStyleContinue}
-                    />
+      <main className="mx-auto max-w-7xl px-6 py-8 md:px-8">
+        <div className="space-y-6">
+          {/* Project Summary Card */}
+          <Card data-testid="card-project-summary">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle data-testid="text-project-name">{project.productName}</CardTitle>
+                  <CardDescription data-testid="text-project-objective">
+                    {project.campaignObjective} • {project.contentStyle.replace(/_/g, " ")}
+                  </CardDescription>
+                </div>
+                <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+                  <DialogTrigger asChild>
+                    <Button variant="outline" size="sm" className="gap-2" data-testid="button-edit-project">
+                      <Edit className="h-4 w-4" />
+                      Edit Details
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="max-w-2xl" data-testid="dialog-edit-project">
+                    <DialogHeader>
+                      <DialogTitle>Edit Project Details</DialogTitle>
+                      <DialogDescription>Update your project information and brand settings</DialogDescription>
+                    </DialogHeader>
+                    <Form {...form}>
+                      <form onSubmit={form.handleSubmit(handleUpdateProject)} className="space-y-6">
+                        <div className="grid gap-4 md:grid-cols-2">
+                          <FormField
+                            control={form.control}
+                            name="productName"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Product Name</FormLabel>
+                                <FormControl>
+                                  <Input {...field} data-testid="input-product-name" />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          <FormField
+                            control={form.control}
+                            name="campaignObjective"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Campaign Objective</FormLabel>
+                                <Select onValueChange={field.onChange} value={field.value}>
+                                  <FormControl>
+                                    <SelectTrigger data-testid="select-campaign-objective">
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                  </FormControl>
+                                  <SelectContent>
+                                    <SelectItem value="awareness">Brand Awareness</SelectItem>
+                                    <SelectItem value="engagement">Engagement</SelectItem>
+                                    <SelectItem value="conversion">Conversion</SelectItem>
+                                    <SelectItem value="retention">Retention</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        </div>
+
+                        <FormField
+                          control={form.control}
+                          name="productDescription"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Product Description</FormLabel>
+                              <FormControl>
+                                <Textarea {...field} rows={3} data-testid="input-product-description" />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+
+                        <div className="grid gap-4 md:grid-cols-2">
+                          <FormField
+                            control={form.control}
+                            name="targetAudience"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Target Audience</FormLabel>
+                                <FormControl>
+                                  <Textarea {...field} rows={3} data-testid="input-target-audience" />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                          <FormField
+                            control={form.control}
+                            name="brandVoice"
+                            render={({ field }) => (
+                              <FormItem>
+                                <FormLabel>Brand Voice</FormLabel>
+                                <FormControl>
+                                  <Textarea {...field} rows={3} data-testid="input-brand-voice" />
+                                </FormControl>
+                                <FormMessage />
+                              </FormItem>
+                            )}
+                          />
+                        </div>
+
+                        <FormField
+                          control={form.control}
+                          name="contentStyle"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Content Style</FormLabel>
+                              <Select onValueChange={field.onChange} value={field.value}>
+                                <FormControl>
+                                  <SelectTrigger data-testid="select-content-style">
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                  <SelectItem value="relatable_peer">Relatable Peer</SelectItem>
+                                  <SelectItem value="expert_authority">Expert Authority</SelectItem>
+                                  <SelectItem value="aspirational_leader">Aspirational Leader</SelectItem>
+                                  <SelectItem value="problem_solver">Problem Solver</SelectItem>
+                                  <SelectItem value="entertainer">Entertainer</SelectItem>
+                                  <SelectItem value="educator">Educator</SelectItem>
+                                </SelectContent>
+                              </Select>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+
+                        <DialogFooter>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={() => setEditDialogOpen(false)}
+                            data-testid="button-cancel-edit"
+                          >
+                            Cancel
+                          </Button>
+                          <Button
+                            type="submit"
+                            disabled={updateProjectMutation.isPending}
+                            data-testid="button-save-project"
+                          >
+                            {updateProjectMutation.isPending ? "Saving..." : "Save Changes"}
+                          </Button>
+                        </DialogFooter>
+                      </form>
+                    </Form>
+                  </DialogContent>
+                </Dialog>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Description</p>
+                <p className="text-sm mt-1" data-testid="text-project-description">{project.productDescription}</p>
+              </div>
+              <div className="grid gap-4 md:grid-cols-2">
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Target Audience</p>
+                  <p className="text-sm mt-1" data-testid="text-target-audience">{project.targetAudience}</p>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Brand Voice</p>
+                  <p className="text-sm mt-1" data-testid="text-brand-voice">{project.brandVoice}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Content Generation Section */}
+          <div className="space-y-6" data-testid="section-content-workspace">
+            {!contentPackage && !generateContentMutation.isPending && (
+              <Card className="p-8">
+                <div className="text-center space-y-4">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary mx-auto">
+                    <Sparkles className="h-6 w-6 text-primary-foreground" />
                   </div>
-                )}
+                  <div>
+                    <h3 className="text-xl font-bold tracking-tight" data-testid="text-generate-prompt">
+                      Ready to Generate Content
+                    </h3>
+                    <p className="text-muted-foreground mt-2" data-testid="text-generate-description">
+                      Generate AI-powered content ideas, scripts, and strategies for {project.productName}
+                    </p>
+                  </div>
+                  <Button
+                    onClick={() => generateContentMutation.mutate()}
+                    size="lg"
+                    className="gap-2"
+                    data-testid="button-generate-content"
+                  >
+                    <Sparkles className="h-4 w-4" />
+                    Generate Content Package
+                  </Button>
+                </div>
               </Card>
             )}
 
-            {currentStep === 4 && (
-              <div className="space-y-6" data-testid="section-content-package">
-                {/* Header */}
+            {generateContentMutation.isPending && <GeneratingContent />}
+
+            {contentPackage && (
+              <div className="space-y-6" data-testid="section-generated-content">
                 <div className="flex items-center justify-between">
-                  <div>
-                    <h2 className="text-2xl font-bold tracking-tight" data-testid="text-package-title">Content Package</h2>
-                    <p className="text-muted-foreground mt-1" data-testid="text-package-subtitle">
-                      {formData.productName} • {formData.campaignObjective}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setCurrentStep(1)}
-                      className="gap-2"
-                      data-testid="button-start-over"
-                    >
-                      <ArrowLeft className="h-4 w-4" />
-                      Start Over
-                    </Button>
-                    {contentPackage && (
-                      <Button
-                        size="sm"
-                        onClick={handleExportPackage}
-                        className="gap-2"
-                        data-testid="button-export-package"
-                      >
-                        <Download className="h-4 w-4" />
-                        Export
-                      </Button>
-                    )}
-                  </div>
+                  <h2 className="text-2xl font-bold tracking-tight" data-testid="text-package-title">Content Package</h2>
+                  <Button
+                    size="sm"
+                    onClick={handleExportPackage}
+                    className="gap-2"
+                    data-testid="button-export-package"
+                  >
+                    <Download className="h-4 w-4" />
+                    Export
+                  </Button>
                 </div>
 
-                {/* Loading State */}
-                {generateContentMutation.isPending && <GeneratingContent />}
+                <TrendInsightsDisplay insights={contentPackage.trendInsights} />
 
-                {/* Content Display */}
-                {contentPackage && (
-                  <div className="space-y-6" data-testid="section-generated-content">
-                    {/* Trend Insights */}
-                    <TrendInsightsDisplay insights={contentPackage.trendInsights} />
+                <div className="space-y-4">
+                  <h3 className="text-xl font-bold tracking-tight" data-testid="text-ideas-count">
+                    Content Ideas ({contentPackage.ideas.length})
+                  </h3>
+                  {isLoadingPackage ? (
+                    <ContentIdeasSkeleton />
+                  ) : (
+                    <ContentIdeasGrid
+                      ideas={contentPackage.ideas}
+                      onSelectIdea={handleSelectIdea}
+                      selectedIdeaId={selectedIdea?.id}
+                    />
+                  )}
+                </div>
 
-                    {/* Content Ideas */}
-                    <div className="space-y-4">
-                      <h3 className="text-xl font-bold tracking-tight" data-testid="text-ideas-count">
-                        Content Ideas ({contentPackage.ideas.length})
-                      </h3>
-                      {isLoadingPackage ? (
-                        <ContentIdeasSkeleton />
-                      ) : (
-                        <ContentIdeasGrid
-                          ideas={contentPackage.ideas}
-                          onSelectIdea={handleSelectIdea}
-                          selectedIdeaId={selectedIdea?.id}
-                        />
-                      )}
-                    </div>
-
-                    {/* Selected Idea Details */}
-                    {selectedIdea && (
-                      <div className="space-y-6" data-testid="section-production-assets">
-                        <Tabs value={selectedDuration} onValueChange={(v) => setSelectedDuration(v as any)}>
-                          <div className="flex items-center justify-between">
-                            <h3 className="text-xl font-bold tracking-tight" data-testid="text-assets-title">Production Ready Assets</h3>
-                            <TabsList data-testid="tabs-duration">
-                              <TabsTrigger value="15" data-testid="tab-15s">15s</TabsTrigger>
-                              <TabsTrigger value="30" data-testid="tab-30s">30s</TabsTrigger>
-                              <TabsTrigger value="60" data-testid="tab-60s">60s</TabsTrigger>
-                            </TabsList>
-                          </div>
-
-                          <TabsContent value={selectedDuration} className="mt-6 space-y-6">
-                            {script && (
-                              <ScriptDisplay
-                                script={script}
-                                ideaTitle={selectedIdea.title}
-                              />
-                            )}
-                            {hashtags && (
-                              <HashtagStrategyDisplay strategy={hashtags} />
-                            )}
-                          </TabsContent>
-                        </Tabs>
+                {selectedIdea && (
+                  <div className="space-y-6" data-testid="section-production-assets">
+                    <Tabs value={selectedDuration} onValueChange={(v) => setSelectedDuration(v as any)}>
+                      <div className="flex items-center justify-between">
+                        <h3 className="text-xl font-bold tracking-tight" data-testid="text-assets-title">
+                          Production Ready Assets
+                        </h3>
+                        <TabsList data-testid="tabs-duration">
+                          <TabsTrigger value="15" data-testid="tab-15s">15s</TabsTrigger>
+                          <TabsTrigger value="30" data-testid="tab-30s">30s</TabsTrigger>
+                          <TabsTrigger value="60" data-testid="tab-60s">60s</TabsTrigger>
+                        </TabsList>
                       </div>
-                    )}
+
+                      <TabsContent value={selectedDuration} className="mt-6 space-y-6">
+                        {script && (
+                          <ScriptDisplay
+                            script={script}
+                            ideaTitle={selectedIdea.title}
+                          />
+                        )}
+                        {hashtags && (
+                          <HashtagStrategyDisplay strategy={hashtags} />
+                        )}
+                      </TabsContent>
+                    </Tabs>
                   </div>
                 )}
               </div>
