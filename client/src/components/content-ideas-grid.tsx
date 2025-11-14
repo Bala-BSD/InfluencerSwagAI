@@ -1,14 +1,14 @@
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { FileText, Sparkles } from "lucide-react";
+import { FileText, Sparkles, Heart } from "lucide-react";
 import { ContentIdea } from "@shared/schema";
 import { cn } from "@/lib/utils";
 
 interface ContentIdeasGridProps {
   ideas: ContentIdea[];
   onSelectIdea: (idea: ContentIdea) => void;
-  selectedIdeaId?: string;
+  selectedIdeaIds?: Set<string>;
 }
 
 const funnelStageColors = {
@@ -27,7 +27,7 @@ const funnelStageLabels = {
   trending: "Trending",
 };
 
-export function ContentIdeasGrid({ ideas, onSelectIdea, selectedIdeaId }: ContentIdeasGridProps) {
+export function ContentIdeasGrid({ ideas, onSelectIdea, selectedIdeaIds = new Set() }: ContentIdeasGridProps) {
   if (ideas.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-12 text-center">
@@ -45,19 +45,32 @@ export function ContentIdeasGrid({ ideas, onSelectIdea, selectedIdeaId }: Conten
   return (
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
       {ideas.map((idea) => {
-        const isSelected = selectedIdeaId === idea.id;
+        const isSelected = selectedIdeaIds?.has(idea.id) || false;
         
         return (
           <Card
             key={idea.id}
             className={cn(
-              "flex flex-col gap-4 p-6 transition-all hover-elevate cursor-pointer",
+              "relative flex flex-col gap-4 p-6 transition-all hover-elevate cursor-pointer",
               isSelected && "border-primary bg-accent"
             )}
             onClick={() => onSelectIdea(idea)}
             data-testid={`card-idea-${idea.id}`}
           >
-            <div className="flex items-start justify-between gap-2">
+            {/* Heart icon in top right corner */}
+            <div className="absolute top-4 right-4">
+              <Heart
+                className={cn(
+                  "h-5 w-5 transition-all",
+                  isSelected
+                    ? "fill-primary text-primary"
+                    : "text-muted-foreground hover:text-primary"
+                )}
+                data-testid={`icon-heart-${idea.id}`}
+              />
+            </div>
+
+            <div className="flex items-start justify-between gap-2 pr-8">
               <Badge
                 variant="outline"
                 className={cn("border", funnelStageColors[idea.funnelStage])}
@@ -89,9 +102,10 @@ export function ContentIdeasGrid({ ideas, onSelectIdea, selectedIdeaId }: Conten
             <Button
               variant={isSelected ? "default" : "outline"}
               size="sm"
-              className="w-full"
+              className="w-full gap-2"
               data-testid={`button-select-idea-${idea.id}`}
             >
+              <Heart className={cn("h-4 w-4", isSelected && "fill-current")} />
               {isSelected ? "Selected" : "Select Idea"}
             </Button>
           </Card>

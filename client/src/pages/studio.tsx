@@ -20,13 +20,14 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { ContentIdea, ContentPackage, Script, HashtagStrategy, insertContentProjectSchema } from "@shared/schema";
-import { Download, Edit, Sparkles } from "lucide-react";
+import { Download, Edit, Sparkles, Heart, ArrowRight } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 const updateProjectSchema = insertContentProjectSchema.partial();
 
 export default function Studio() {
   const { projectId, project, isLoading, error } = useProject();
+  const [selectedIdeaIds, setSelectedIdeaIds] = useState<Set<string>>(new Set());
   const [selectedIdea, setSelectedIdea] = useState<ContentIdea | null>(null);
   const [selectedDuration, setSelectedDuration] = useState<"15" | "30" | "60">("30");
   const [editDialogOpen, setEditDialogOpen] = useState(false);
@@ -193,6 +194,18 @@ export default function Studio() {
     },
     enabled: false,
   });
+
+  const handleToggleIdeaSelection = (idea: ContentIdea) => {
+    setSelectedIdeaIds(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(idea.id)) {
+        newSet.delete(idea.id);
+      } else {
+        newSet.add(idea.id);
+      }
+      return newSet;
+    });
+  };
 
   const handleSelectIdea = async (idea: ContentIdea) => {
     setSelectedIdea(idea);
@@ -538,8 +551,8 @@ export default function Studio() {
                   ) : (
                     <ContentIdeasGrid
                       ideas={contentPackage.ideas}
-                      onSelectIdea={handleSelectIdea}
-                      selectedIdeaId={selectedIdea?.id}
+                      onSelectIdea={handleToggleIdeaSelection}
+                      selectedIdeaIds={selectedIdeaIds}
                     />
                   )}
                 </div>
@@ -576,6 +589,50 @@ export default function Studio() {
             )}
           </div>
         </div>
+
+        {/* Floating Action Bar for Selected Ideas */}
+        {selectedIdeaIds.size > 0 && (
+          <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50">
+            <Card className="border-primary shadow-lg">
+              <CardContent className="flex items-center gap-6 p-4">
+                <div className="flex items-center gap-2">
+                  <Heart className="h-5 w-5 fill-primary text-primary" />
+                  <span className="font-semibold" data-testid="text-selected-count">
+                    {selectedIdeaIds.size} {selectedIdeaIds.size === 1 ? 'idea' : 'ideas'} selected
+                  </span>
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setSelectedIdeaIds(new Set())}
+                    data-testid="button-clear-selection"
+                  >
+                    Clear
+                  </Button>
+                  <Button
+                    size="sm"
+                    className="gap-2"
+                    onClick={() => {
+                      // Navigate to script generation for selected ideas
+                      const firstSelectedId = Array.from(selectedIdeaIds)[0];
+                      const firstIdea = contentPackage?.ideas.find(i => i.id === firstSelectedId);
+                      if (firstIdea) {
+                        handleSelectIdea(firstIdea);
+                        // Scroll to production assets section
+                        document.querySelector('[data-testid="section-production-assets"]')?.scrollIntoView({ behavior: 'smooth' });
+                      }
+                    }}
+                    data-testid="button-generate-scripts"
+                  >
+                    Generate Scripts
+                    <ArrowRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
       </main>
     </div>
   );
