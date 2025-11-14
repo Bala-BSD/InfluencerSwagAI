@@ -33,6 +33,33 @@ export default function Studio() {
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const { toast } = useToast();
 
+  // Rehydrate selected idea IDs from sessionStorage on mount
+  useEffect(() => {
+    const storedIds = sessionStorage.getItem('selectedIdeaIds');
+    const storedProjectId = sessionStorage.getItem('selectedProjectId');
+    
+    // Only rehydrate if selection belongs to current project
+    if (storedIds && storedProjectId === projectId) {
+      const ids = JSON.parse(storedIds) as string[];
+      setSelectedIdeaIds(new Set(ids));
+    } else if (storedProjectId && storedProjectId !== projectId) {
+      // Clear stale selection from different project
+      sessionStorage.removeItem('selectedIdeaIds');
+      sessionStorage.removeItem('selectedProjectId');
+    }
+  }, [projectId]); // Only run when projectId changes
+
+  // Persist selected idea IDs to sessionStorage whenever selection changes
+  useEffect(() => {
+    if (selectedIdeaIds.size > 0) {
+      sessionStorage.setItem('selectedIdeaIds', JSON.stringify(Array.from(selectedIdeaIds)));
+      sessionStorage.setItem('selectedProjectId', projectId || '');
+    } else {
+      sessionStorage.removeItem('selectedIdeaIds');
+      sessionStorage.removeItem('selectedProjectId');
+    }
+  }, [selectedIdeaIds, projectId]);
+
   const form = useForm({
     resolver: zodResolver(updateProjectSchema),
     defaultValues: {
@@ -614,8 +641,6 @@ export default function Studio() {
                     size="sm"
                     className="gap-2"
                     onClick={() => {
-                      // Save selected IDs to session storage and navigate
-                      sessionStorage.setItem('selectedIdeaIds', JSON.stringify(Array.from(selectedIdeaIds)));
                       window.location.href = `/projects/${projectId}/generate`;
                     }}
                     data-testid="button-generate-scripts"

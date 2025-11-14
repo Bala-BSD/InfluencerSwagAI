@@ -1,13 +1,12 @@
 import { useState, useEffect } from "react";
-import { useLocation } from "wouter";
+import { useLocation, useRoute } from "wouter";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { useProject } from "@/hooks/use-project";
+import { ContentProject } from "@shared/schema";
 import { StudioHeader } from "@/components/studio-header";
 import { ScriptDisplay } from "@/components/script-display";
 import { HashtagStrategyDisplay } from "@/components/hashtag-strategy-display";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { ContentIdea, Script, HashtagStrategy } from "@shared/schema";
@@ -15,8 +14,9 @@ import { ArrowLeft, Sparkles, Check, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 export default function BatchGenerate() {
-  const [, setLocation] = useLocation();
-  const { projectId, project } = useProject();
+  const [location, setLocation] = useLocation();
+  const [, params] = useRoute("/projects/:projectId/generate");
+  const projectId = params?.projectId || null;
   const { toast } = useToast();
   const [selectedDuration, setSelectedDuration] = useState<"15" | "30" | "60">("30");
   const [selectedIdeaIds, setSelectedIdeaIds] = useState<Set<string>>(new Set());
@@ -24,6 +24,18 @@ export default function BatchGenerate() {
   const [generatedScripts, setGeneratedScripts] = useState<Map<string, Script>>(new Map());
   const [generatedHashtags, setGeneratedHashtags] = useState<Map<string, HashtagStrategy>>(new Map());
   const [generatingIds, setGeneratingIds] = useState<Set<string>>(new Set());
+
+  // Fetch project data
+  const { data: project } = useQuery<ContentProject>({
+    queryKey: ["/api/projects", projectId],
+    queryFn: async () => {
+      if (!projectId) throw new Error("No project ID");
+      const response = await fetch(`/api/projects/${projectId}`);
+      if (!response.ok) throw new Error("Failed to load project");
+      return response.json();
+    },
+    enabled: !!projectId,
+  });
 
   // Fetch content package
   const { data: contentPackage, isLoading: isLoadingPackage } = useQuery({
@@ -40,18 +52,30 @@ export default function BatchGenerate() {
   // Load selected ideas from session storage and filter content package
   useEffect(() => {
     const storedIds = sessionStorage.getItem('selectedIdeaIds');
-    console.log('[BatchGenerate] storedIds from sessionStorage:', storedIds);
-    console.log('[BatchGenerate] contentPackage?.ideas length:', contentPackage?.ideas?.length);
+    const storedProjectId = sessionStorage.getItem('selectedProjectId');
+    
+    // Validate that selected ideas belong to current project
+    if (storedProjectId && storedProjectId !== projectId) {
+      // Clear stale selection from different project
+      sessionStorage.removeItem('selectedIdeaIds');
+      sessionStorage.removeItem('selectedProjectId');
+      setSelectedIdeas([]);
+      return;
+    }
     
     if (storedIds && contentPackage?.ideas) {
       const ids = JSON.parse(storedIds) as string[];
-      console.log('[BatchGenerate] parsed IDs:', ids);
       setSelectedIdeaIds(new Set(ids));
       const ideas = contentPackage.ideas.filter((idea: ContentIdea) => ids.includes(idea.id));
-      console.log('[BatchGenerate] filtered ideas:', ideas.length, ideas.map((i: ContentIdea) => i.title));
       setSelectedIdeas(ideas);
+      
+      // If no matching ideas found, clear sessionStorage
+      if (ideas.length === 0) {
+        sessionStorage.removeItem('selectedIdeaIds');
+        sessionStorage.removeItem('selectedProjectId');
+      }
     }
-  }, [contentPackage]);
+  }, [contentPackage, projectId]);
 
   const generateScriptMutation = useMutation({
     mutationFn: async ({ idea, duration }: { idea: ContentIdea; duration: string }) => {
@@ -166,32 +190,33 @@ export default function BatchGenerate() {
               </div>
             </div>
             <div className="flex items-center gap-4">
-              <TabsList data-testid="tabs-duration">
-                <TabsTrigger 
-                  value="15" 
+              <div className="flex items-center gap-2" data-testid="tabs-duration">
+                <span className="text-sm text-muted-foreground mr-1">Duration:</span>
+                <Button
+                  variant={selectedDuration === "15" ? "default" : "outline"}
+                  size="sm"
                   onClick={() => setSelectedDuration("15")}
-                  className={selectedDuration === "15" ? "data-[state=active]:bg-primary" : ""}
                   data-testid="tab-15s"
                 >
                   15s
-                </TabsTrigger>
-                <TabsTrigger 
-                  value="30"
+                </Button>
+                <Button
+                  variant={selectedDuration === "30" ? "default" : "outline"}
+                  size="sm"
                   onClick={() => setSelectedDuration("30")}
-                  className={selectedDuration === "30" ? "data-[state=active]:bg-primary" : ""}
                   data-testid="tab-30s"
                 >
                   30s
-                </TabsTrigger>
-                <TabsTrigger 
-                  value="60"
+                </Button>
+                <Button
+                  variant={selectedDuration === "60" ? "default" : "outline"}
+                  size="sm"
                   onClick={() => setSelectedDuration("60")}
-                  className={selectedDuration === "60" ? "data-[state=active]:bg-primary" : ""}
                   data-testid="tab-60s"
                 >
                   60s
-                </TabsTrigger>
-              </TabsList>
+                </Button>
+              </div>
               <Button
                 onClick={handleGenerateAll}
                 disabled={generatingIds.size > 0}
