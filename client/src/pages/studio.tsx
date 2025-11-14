@@ -614,14 +614,9 @@ export default function Studio() {
                     size="sm"
                     className="gap-2"
                     onClick={() => {
-                      // Navigate to script generation for selected ideas
-                      const firstSelectedId = Array.from(selectedIdeaIds)[0];
-                      const firstIdea = contentPackage?.ideas.find(i => i.id === firstSelectedId);
-                      if (firstIdea) {
-                        handleSelectIdea(firstIdea);
-                        // Scroll to production assets section
-                        document.querySelector('[data-testid="section-production-assets"]')?.scrollIntoView({ behavior: 'smooth' });
-                      }
+                      // Save selected IDs to session storage and navigate
+                      sessionStorage.setItem('selectedIdeaIds', JSON.stringify(Array.from(selectedIdeaIds)));
+                      window.location.href = `/projects/${projectId}/generate`;
                     }}
                     data-testid="button-generate-scripts"
                   >

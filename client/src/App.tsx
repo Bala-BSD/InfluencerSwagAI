@@ -8,6 +8,7 @@ import { AppSidebar } from "@/components/app-sidebar";
 import Studio from "@/pages/studio";
 import Projects from "@/pages/projects";
 import NewProject from "@/pages/new-project";
+import BatchGenerate from "@/pages/batch-generate";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -19,6 +20,7 @@ function Router() {
       <Route path="/projects" component={Projects} />
       <Route path="/projects/new" component={NewProject} />
       <Route path="/projects/:projectId" component={Studio} />
+      <Route path="/projects/:projectId/generate" component={BatchGenerate} />
       <Route component={NotFound} />
     </Switch>
   );

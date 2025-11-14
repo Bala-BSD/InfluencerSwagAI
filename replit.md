@@ -4,7 +4,9 @@
 
 Content SwaG is an AI-powered content creation IDE designed for influencers and content creators. It provides a comprehensive workflow for generating production-ready social media content, including strategic content ideas, video scripts, hashtag strategies, and trend insights.
 
-**Current Phase (Phase 2 - Completed)**: Multi-project management system with PostgreSQL persistence, project creation wizard, sidebar navigation, and project-scoped content generation. Users can create and manage multiple product projects, each with isolated content packages.
+**Current Phase (Phase 3 - In Progress)**: Multi-select content idea workflow with heart icon selection, batch script generation page, and video length customization (15s/30s/60s).
+
+**Phase 2 (Completed)**: Multi-project management system with PostgreSQL persistence, project creation wizard, sidebar navigation, and project-scoped content generation. Users can create and manage multiple product projects, each with isolated content packages.
 
 **Phase 1 (Completed)**: Single-project content generation with multi-step wizard for product definition, campaign objectives, and content style selection. Full AI-powered content package generation with ideas, scripts, hashtags, and trends.
 
