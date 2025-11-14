@@ -188,6 +188,7 @@ export type ContentPackage = z.infer<typeof contentPackageSchema>;
 
 // API Request/Response Schemas
 export const generateContentRequestSchema = z.object({
+  projectId: z.string().optional(), // Optional: if provided, generate for existing project; if omitted, create new project
   productName: z.string().min(1, "Product name is required"),
   productDescription: z.string().min(10, "Product description must be at least 10 characters"),
   targetAudience: z.string().min(5, "Target audience description is required"),

@@ -81,8 +81,9 @@ export default function Studio() {
 
   const generateContentMutation = useMutation({
     mutationFn: async () => {
-      if (!project) throw new Error("No project loaded");
+      if (!project || !projectId) throw new Error("No project loaded");
       const response = await apiRequest("POST", "/api/content/generate", {
+        projectId: projectId, // Pass projectId to generate content for existing project
         productName: project.productName,
         productDescription: project.productDescription,
         targetAudience: project.targetAudience,
@@ -90,18 +91,21 @@ export default function Studio() {
         campaignObjective: project.campaignObjective,
         contentStyle: project.contentStyle,
       });
-      return response as ContentPackage;
+      // CRITICAL: apiRequest returns Response, must parse JSON to get ContentPackage
+      return (await response.json()) as ContentPackage;
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       if (projectId) {
-        queryClient.invalidateQueries({ queryKey: ["/api/content/package", projectId] });
+        // Directly set the query data instead of invalidating
+        queryClient.setQueryData(["/api/content/package", projectId], data);
       }
       toast({
         title: "Content generated!",
         description: "Your AI-powered content package is ready",
       });
     },
-    onError: () => {
+    onError: (error: any) => {
+      console.error("Content generation error:", error);
       toast({
         title: "Generation failed",
         description: "Please try again or adjust your inputs",
@@ -112,7 +116,17 @@ export default function Studio() {
 
   const { data: contentPackage, isLoading: isLoadingPackage } = useQuery<ContentPackage>({
     queryKey: ["/api/content/package", projectId],
-    enabled: !!projectId && generateContentMutation.isSuccess,
+    queryFn: async () => {
+      if (!projectId) throw new Error("No project ID");
+      const response = await fetch(`/api/content/package?projectId=${projectId}`);
+      if (!response.ok) {
+        if (response.status === 404) return null; // No content package yet - show empty state
+        throw new Error("Failed to fetch content package");
+      }
+      return response.json();
+    },
+    enabled: !!projectId,
+    retry: false, // Don't retry on 404
   });
 
   const generateScriptMutation = useMutation({
@@ -496,7 +510,7 @@ export default function Studio() {
 
             {generateContentMutation.isPending && <GeneratingContent />}
 
-            {contentPackage && (
+            {contentPackage && contentPackage.ideas && (
               <div className="space-y-6" data-testid="section-generated-content">
                 <div className="flex items-center justify-between">
                   <h2 className="text-2xl font-bold tracking-tight" data-testid="text-package-title">Content Package</h2>

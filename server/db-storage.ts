@@ -199,19 +199,12 @@ export class DatabaseStorage implements IStorage {
 
   // New methods for multi-project support
   async updateProject(id: string, updates: Partial<InsertContentProject>): Promise<ContentProject | undefined> {
-    const [updated] = await db.update(contentProjects)
+    await db.update(contentProjects)
       .set(updates)
-      .where(eq(contentProjects.id, id))
-      .returning();
+      .where(eq(contentProjects.id, id));
     
-    if (!updated) return undefined;
-    
-    return {
-      ...updated,
-      campaignObjective: updated.campaignObjective as any,
-      contentStyle: updated.contentStyle as any,
-      createdAt: updated.createdAt.toISOString(),
-    };
+    // Re-fetch the complete project to ensure all fields (including createdAt) are present
+    return this.getContentProject(id);
   }
 
   async deleteProject(id: string): Promise<void> {

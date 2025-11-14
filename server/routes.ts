@@ -16,8 +16,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const validatedData = generateContentRequestSchema.parse(req.body);
 
-      // Create project
-      const project = await storage.createContentProject(validatedData);
+      // Get or create project
+      let project;
+      if (validatedData.projectId) {
+        // Use existing project and update its metadata with latest values
+        project = await storage.getContentProject(validatedData.projectId);
+        if (!project) {
+          res.status(404).json({ error: "Project not found" });
+          return;
+        }
+        
+        // Update project with latest metadata from request
+        const updatedProject = await storage.updateProject(validatedData.projectId, {
+          productName: validatedData.productName,
+          productDescription: validatedData.productDescription,
+          targetAudience: validatedData.targetAudience,
+          brandVoice: validatedData.brandVoice,
+          campaignObjective: validatedData.campaignObjective,
+          contentStyle: validatedData.contentStyle,
+        });
+        
+        if (updatedProject) {
+          project = updatedProject;
+        }
+      } else {
+        // Create new project (legacy flow - not used in current multi-project workflow)
+        project = await storage.createContentProject(validatedData);
+      }
 
       // Generate content ideas and trend insights in parallel
       const [ideas, trendInsights] = await Promise.all([
@@ -45,13 +70,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get current content package
+  // Get content package for specific project
   app.get("/api/content/package", async (req, res) => {
     try {
-      const contentPackage = await storage.getCurrentPackage();
+      const projectId = req.query.projectId as string;
+      
+      if (!projectId) {
+        res.status(400).json({ error: "projectId query parameter is required" });
+        return;
+      }
+      
+      const contentPackage = await storage.getContentPackage(projectId);
       
       if (!contentPackage) {
-        res.status(404).json({ error: "No content package found" });
+        res.status(404).json({ error: "No content package found for this project" });
         return;
       }
 
