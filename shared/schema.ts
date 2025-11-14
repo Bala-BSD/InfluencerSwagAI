@@ -1,18 +1,142 @@
-import { sql } from "drizzle-orm";
-import { pgTable, text, varchar } from "drizzle-orm/pg-core";
-import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
+import { createInsertSchema } from "drizzle-zod";
+import { pgTable, text, varchar, timestamp } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 
-export const users = pgTable("users", {
+// Drizzle table definition for content projects (for consistency with guidelines)
+export const contentProjects = pgTable("content_projects", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  username: text("username").notNull().unique(),
-  password: text("password").notNull(),
+  productName: text("product_name").notNull(),
+  productDescription: text("product_description").notNull(),
+  targetAudience: text("target_audience").notNull(),
+  brandVoice: text("brand_voice").notNull(),
+  campaignObjective: text("campaign_objective").notNull(),
+  contentStyle: text("content_style").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
-export const insertUserSchema = createInsertSchema(users).pick({
-  username: true,
-  password: true,
+// Content Project Schema
+export const contentProjectSchema = z.object({
+  id: z.string(),
+  productName: z.string(),
+  productDescription: z.string(),
+  targetAudience: z.string(),
+  brandVoice: z.string(),
+  campaignObjective: z.enum(['awareness', 'engagement', 'conversion', 'retention']),
+  contentStyle: z.enum(['relatable_peer', 'expert_authority', 'aspirational_leader', 'problem_solver', 'entertainer', 'educator']),
+  createdAt: z.string(),
 });
 
-export type InsertUser = z.infer<typeof insertUserSchema>;
-export type User = typeof users.$inferSelect;
+export const insertContentProjectSchema = createInsertSchema(contentProjects).omit({ id: true, createdAt: true });
+
+export type ContentProject = z.infer<typeof contentProjectSchema>;
+export type InsertContentProject = z.infer<typeof insertContentProjectSchema>;
+
+// Content Idea Schema
+export const contentIdeaSchema = z.object({
+  id: z.string(),
+  projectId: z.string(),
+  title: z.string(),
+  hook: z.string(),
+  angle: z.string(),
+  funnelStage: z.enum(['awareness', 'engagement', 'conversion', 'retention', 'trending']),
+  category: z.string(),
+  description: z.string(),
+});
+
+export type ContentIdea = z.infer<typeof contentIdeaSchema>;
+
+// Script Schema
+export const scriptSchema = z.object({
+  id: z.string(),
+  ideaId: z.string(),
+  duration: z.enum(['15', '30', '60']),
+  scenes: z.array(z.object({
+    timeStart: z.number(),
+    timeEnd: z.number(),
+    visual: z.string(),
+    voiceOver: z.string(),
+    onScreenText: z.string().optional(),
+    audioCue: z.string().optional(),
+    transition: z.string().optional(),
+  })),
+});
+
+export type Script = z.infer<typeof scriptSchema>;
+
+// Hashtag Strategy Schema
+export const hashtagStrategySchema = z.object({
+  branded: z.array(z.string()),
+  broadReach: z.array(z.string()),
+  nicheSpecific: z.array(z.string()),
+  formatContext: z.array(z.string()),
+});
+
+export type HashtagStrategy = z.infer<typeof hashtagStrategySchema>;
+
+// Trend Insights Schema
+export const trendInsightsSchema = z.object({
+  emergingFormats: z.array(z.string()),
+  viralNarratives: z.array(z.string()),
+  audioStyles: z.array(z.string()),
+  seasonalRelevance: z.string(),
+});
+
+export type TrendInsights = z.infer<typeof trendInsightsSchema>;
+
+// Performance Prediction Schema
+export const performancePredictionSchema = z.object({
+  viewDuration: z.object({
+    min: z.number(),
+    max: z.number(),
+  }),
+  engagementRate: z.object({
+    min: z.number(),
+    max: z.number(),
+  }),
+  shareabilityScore: z.number(),
+  conversionPotential: z.enum(['low', 'medium', 'high', 'very_high']),
+});
+
+export type PerformancePrediction = z.infer<typeof performancePredictionSchema>;
+
+// Complete Content Package Schema
+export const contentPackageSchema = z.object({
+  project: contentProjectSchema,
+  ideas: z.array(contentIdeaSchema),
+  trendInsights: trendInsightsSchema,
+});
+
+export type ContentPackage = z.infer<typeof contentPackageSchema>;
+
+// API Request/Response Schemas
+export const generateContentRequestSchema = z.object({
+  productName: z.string().min(1, "Product name is required"),
+  productDescription: z.string().min(10, "Product description must be at least 10 characters"),
+  targetAudience: z.string().min(5, "Target audience description is required"),
+  brandVoice: z.string().min(5, "Brand voice description is required"),
+  campaignObjective: z.enum(['awareness', 'engagement', 'conversion', 'retention']),
+  contentStyle: z.enum(['relatable_peer', 'expert_authority', 'aspirational_leader', 'problem_solver', 'entertainer', 'educator']),
+});
+
+export type GenerateContentRequest = z.infer<typeof generateContentRequestSchema>;
+
+export const generateScriptRequestSchema = z.object({
+  ideaId: z.string(),
+  ideaTitle: z.string(),
+  ideaHook: z.string(),
+  ideaAngle: z.string(),
+  productName: z.string(),
+  duration: z.enum(['15', '30', '60']),
+  contentStyle: z.string(),
+});
+
+export type GenerateScriptRequest = z.infer<typeof generateScriptRequestSchema>;
+
+export const generateHashtagsRequestSchema = z.object({
+  ideaTitle: z.string(),
+  productName: z.string(),
+  funnelStage: z.string(),
+});
+
+export type GenerateHashtagsRequest = z.infer<typeof generateHashtagsRequestSchema>;
