@@ -2,7 +2,11 @@
 
 ## Overview
 
-Content SwaG is an AI-powered content creation IDE designed for influencers and content creators. It provides a comprehensive workflow for generating production-ready social media content, including strategic content ideas, video scripts, hashtag strategies, and trend insights. The application uses a multi-step form interface to guide users through product definition, campaign objectives, and content style selection, then leverages Large Language Models (LLMs) to generate complete content packages without requiring external API integrations beyond the AI service.
+Content SwaG is an AI-powered content creation IDE designed for influencers and content creators. It provides a comprehensive workflow for generating production-ready social media content, including strategic content ideas, video scripts, hashtag strategies, and trend insights.
+
+**Current Phase (Phase 2 - Completed)**: Multi-project management system with PostgreSQL persistence, project creation wizard, sidebar navigation, and project-scoped content generation. Users can create and manage multiple product projects, each with isolated content packages.
+
+**Phase 1 (Completed)**: Single-project content generation with multi-step wizard for product definition, campaign objectives, and content style selection. Full AI-powered content package generation with ideas, scripts, hashtags, and trends.
 
 ## User Preferences
 
@@ -47,11 +51,17 @@ Preferred communication style: Simple, everyday language.
 
 **API Design:**
 - RESTful API endpoints under `/api` prefix
-- Main endpoints:
-  - POST `/api/content/generate` - Generate complete content package
-  - GET `/api/content/package` - Retrieve current content package
-  - POST `/api/content/script` - Generate script for specific idea
-  - POST `/api/content/hashtags` - Generate hashtag strategy for specific idea
+- **Project Management:**
+  - POST `/api/projects` - Create new project
+  - GET `/api/projects` - List all projects
+  - GET `/api/projects/:id` - Get single project
+  - PATCH `/api/projects/:id` - Update project metadata
+  - DELETE `/api/projects/:id` - Delete project (cascade deletes content)
+- **Content Generation:**
+  - POST `/api/content/generate` - Generate complete content package (requires `projectId`)
+  - GET `/api/content/package?projectId=...` - Retrieve project-scoped content package
+  - POST `/api/content/script` - Generate script for specific idea (requires `projectId`)
+  - POST `/api/content/hashtags` - Generate hashtag strategy for idea (requires `projectId`)
 
 **AI Integration:**
 - OpenRouter-compatible API through Replit's AI Integrations service
@@ -74,26 +84,40 @@ Preferred communication style: Simple, everyday language.
 ### Data Storage Solutions
 
 **Current Implementation:**
-- In-memory storage (MemStorage class) for development/prototyping
-- Maps data structure for projects, packages, scripts, and hashtags
-- Session-based data persistence (data lost on server restart)
+- PostgreSQL database via DatabaseStorage class (replaced MemStorage in Phase 2)
+- Neon serverless database with WebSocket connection pooling
+- Project-scoped content isolation with cascade deletions
+- Full persistence across server restarts
 
 **Database Schema (Drizzle ORM):**
 - PostgreSQL dialect configured via Drizzle Kit
 - Schema defined in `shared/schema.ts` using Drizzle's pgTable
-- Content projects table with fields:
-  - Product information (name, description)
-  - Targeting (audience, brand voice)
-  - Campaign parameters (objective, content style)
-  - Timestamps (created_at)
+- **Core Tables:**
+  - `content_projects`: Product info, targeting, campaign params, timestamps
+  - `content_packages`: Ideas and trend insights (one per project)
+  - `scripts`: Video scripts for specific content ideas
+  - `hashtag_strategies`: Hashtag strategies for specific ideas
+  - `user_preferences`: Favorited ideas and user ratings (future use)
+  - `content_variants`: A/B test variants of content ideas (future use)
+  - `competitor_analyses`: Reverse-engineered competitor insights (future use)
+  - `calendar_entries`: Scheduled content with publish dates (future use)
+- **Relationships:**
+  - All dependent tables reference `content_projects.id` with CASCADE delete
+  - Project isolation enforced via `projectId` foreign keys
 - Neon Database serverless driver configured
-- Migration output directory: `./migrations`
+- Migration via `npm run db:push` (no manual SQL migrations)
 
 **Data Models:**
 - Zod schemas for runtime validation
 - Drizzle-Zod integration for type-safe database operations
 - Shared schema between frontend and backend via `@shared` alias
 - TypeScript types derived from Zod schemas
+
+**Storage Layer:**
+- `IStorage` interface defines all CRUD operations
+- `DatabaseStorage` implementation in `server/db-storage.ts`
+- Project-scoped methods: `getContentPackage(projectId)`, `saveContentPackage(projectId, data)`
+- Cascade delete via `deleteProject(id)` removes all related content
 
 ### Authentication and Authorization
 
