@@ -142,7 +142,8 @@ export default function Studio() {
         duration,
         contentStyle: project.contentStyle,
       });
-      return { script: response as Script, ideaId: idea.id, duration };
+      const script = (await response.json()) as Script;
+      return { script, ideaId: idea.id, duration };
     },
     onSuccess: (data) => {
       queryClient.setQueryData(["/api/content/script", data.ideaId, data.duration], data.script);
@@ -172,7 +173,8 @@ export default function Studio() {
         productName: project.productName,
         funnelStage: idea.funnelStage,
       });
-      return { hashtags: response as HashtagStrategy, ideaId: idea.id };
+      const hashtags = (await response.json()) as HashtagStrategy;
+      return { hashtags, ideaId: idea.id };
     },
     onSuccess: (data) => {
       queryClient.setQueryData(["/api/content/hashtags", data.ideaId], data.hashtags);
