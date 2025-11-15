@@ -4,7 +4,9 @@
 
 Content SwaG is an AI-powered content creation IDE designed for influencers and content creators. It provides a comprehensive workflow for generating production-ready social media content, including strategic content ideas, video scripts, hashtag strategies, and trend insights.
 
-**Current Phase (Phase 3 - Completed)**: Multi-select content idea workflow with heart icon selection, floating action bar with selection count, batch script generation page with video length customization (15s/30s/60s), and selection state persistence across navigation. Includes project isolation to prevent stale selections when switching projects.
+**Current Phase (Phase 4 - Completed)**: Accordion-based content idea organization grouped by funnel stage (Awareness, Engagement, Conversion, Retention, Trending). Each category includes "Generate More Ideas" button for stage-specific idea expansion (5 ideas per click). Features per-stage loading states, duplicate ID prevention, and preserved selection state across idea generation.
+
+**Phase 3 (Completed)**: Multi-select content idea workflow with heart icon selection, floating action bar with selection count, batch script generation page with video length customization (15s/30s/60s), and selection state persistence across navigation. Includes project isolation to prevent stale selections when switching projects.
 
 **Phase 2 (Completed)**: Multi-project management system with PostgreSQL persistence, project creation wizard, sidebar navigation, and project-scoped content generation. Users can create and manage multiple product projects, each with isolated content packages.
 
@@ -34,8 +36,9 @@ Preferred communication style: Simple, everyday language.
 
 **Component Structure:**
 - Multi-step wizard interface for content generation workflow (4 steps)
+- Accordion-based content idea organization with funnel stage grouping
 - Modular component library including content idea cards, script displays, hashtag strategies, and trend insights
-- Reusable UI components from Shadcn/ui (buttons, cards, forms, dialogs, tabs, etc.)
+- Reusable UI components from Shadcn/ui (accordion, buttons, cards, forms, dialogs, tabs, etc.)
 - Path aliases configured for clean imports (`@/`, `@shared/`, `@assets/`)
 
 **State Management:**
@@ -62,6 +65,7 @@ Preferred communication style: Simple, everyday language.
 - **Content Generation:**
   - POST `/api/content/generate` - Generate complete content package (requires `projectId`)
   - GET `/api/content/package?projectId=...` - Retrieve project-scoped content package
+  - POST `/api/content/generate-more-ideas` - Generate 5 additional stage-specific ideas (requires `projectId` and `funnelStage`)
   - POST `/api/content/script` - Generate script for specific idea (requires `projectId`)
   - POST `/api/content/hashtags` - Generate hashtag strategy for idea (requires `projectId`)
 
@@ -77,11 +81,13 @@ Preferred communication style: Simple, everyday language.
 - "Everything as Prompt Engineering" approach - all functionality implemented through structured prompts
 - Specialized prompt templates for:
   - Content idea generation (30+ ideas across funnel stages)
+  - Stage-specific idea expansion (5 additional ideas per request)
   - Trend insights (without external API dependencies)
   - Script generation with scene breakdowns
   - Hashtag strategy creation
 - Combinatorial creativity formulas embedded in prompts
 - JSON output formatting enforced through prompt instructions
+- Deduplication logic prevents duplicate idea IDs across generations
 
 ### Data Storage Solutions
 
