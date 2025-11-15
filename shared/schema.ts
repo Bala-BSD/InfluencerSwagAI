@@ -212,6 +212,19 @@ export const generateScriptRequestSchema = z.object({
 
 export type GenerateScriptRequest = z.infer<typeof generateScriptRequestSchema>;
 
+export const generateMoreIdeasRequestSchema = z.object({
+  projectId: z.string(),
+  productName: z.string(),
+  productDescription: z.string(),
+  targetAudience: z.string(),
+  brandVoice: z.string(),
+  campaignObjective: z.enum(['awareness', 'engagement', 'conversion', 'retention']),
+  contentStyle: z.enum(['relatable_peer', 'expert_authority', 'aspirational_leader', 'problem_solver', 'entertainer', 'educator']),
+  funnelStage: z.enum(['awareness', 'engagement', 'conversion', 'retention', 'trending']),
+});
+
+export type GenerateMoreIdeasRequest = z.infer<typeof generateMoreIdeasRequestSchema>;
+
 export const generateHashtagsRequestSchema = z.object({
   ideaId: z.string(),
   projectId: z.string(),

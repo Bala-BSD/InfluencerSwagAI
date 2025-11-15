@@ -3,6 +3,7 @@ import {
   GenerateContentRequest,
   GenerateScriptRequest,
   GenerateHashtagsRequest,
+  GenerateMoreIdeasRequest,
   ContentIdea,
   TrendInsights,
   Script,
@@ -69,6 +70,72 @@ Return ONLY valid JSON array with exactly 30 ideas. No markdown, no explanations
     } catch (error) {
       console.error("Error generating content ideas:", error);
       throw new Error("Failed to generate content ideas");
+    }
+  }
+
+  // Generate more ideas for a specific funnel stage
+  async generateMoreIdeas(request: GenerateMoreIdeasRequest, projectId: string): Promise<ContentIdea[]> {
+    const funnelStageLabels: Record<string, string> = {
+      awareness: "AWARENESS",
+      engagement: "ENGAGEMENT",
+      conversion: "CONVERSION",
+      retention: "RETENTION",
+      trending: "TRENDING"
+    };
+    
+    const stageLabel = funnelStageLabels[request.funnelStage] || request.funnelStage.toUpperCase();
+    
+    const prompt = `ACT AS CONTENT STRATEGIST AND CREATIVE DIRECTOR:
+
+OBJECTIVE: ${request.campaignObjective}
+PRODUCT: ${request.productName}
+DESCRIPTION: ${request.productDescription}
+TARGET AUDIENCE: ${request.targetAudience}
+BRAND VOICE: ${request.brandVoice}
+CREATOR STYLE: ${request.contentStyle}
+
+GENERATE 5 UNIQUE CONTENT IDEAS specifically for ${stageLabel} stage using combinatorial creativity:
+
+FORMULA VARIATIONS:
+1. Style + Product Scenario + Objective
+2. Style + Trend Adaptation + Objective
+3. Story Arc + Product Scenario + Objective
+
+ALL 5 IDEAS MUST BE FOR ${stageLabel} FUNNEL STAGE ONLY.
+
+OUTPUT FORMAT (JSON array):
+[
+  {
+    "title": "Compelling title",
+    "hook": "3-5 second attention-grabbing hook",
+    "angle": "Unique perspective or approach",
+    "funnelStage": "${request.funnelStage}",
+    "category": "Brief category label",
+    "description": "One sentence description"
+  }
+]
+
+Return ONLY valid JSON array with exactly 5 ideas. No markdown, no explanations.`;
+
+    try {
+      const response = await generateWithRetry(prompt);
+      const jsonMatch = response.match(/\[[\s\S]*\]/);
+      if (!jsonMatch) throw new Error("Invalid JSON response");
+      
+      const ideas = JSON.parse(jsonMatch[0]);
+      return ideas.map((idea: any) => ({
+        id: randomUUID(),
+        projectId,
+        title: idea.title,
+        hook: idea.hook,
+        angle: idea.angle,
+        funnelStage: request.funnelStage,
+        category: idea.category || "General",
+        description: idea.description || idea.hook,
+      }));
+    } catch (error) {
+      console.error("Error generating more ideas:", error);
+      throw new Error("Failed to generate more ideas");
     }
   }
 

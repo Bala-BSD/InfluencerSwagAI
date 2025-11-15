@@ -6,6 +6,7 @@ import {
   generateContentRequestSchema,
   generateScriptRequestSchema,
   generateHashtagsRequestSchema,
+  generateMoreIdeasRequestSchema,
   ContentPackage,
 } from "@shared/schema";
 import { z } from "zod";
@@ -91,6 +92,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error fetching content package:", error);
       res.status(500).json({ error: "Failed to fetch content package" });
+    }
+  });
+
+  // Generate more ideas for a specific funnel stage
+  app.post("/api/content/generate-more-ideas", async (req, res) => {
+    try {
+      const validatedData = generateMoreIdeasRequestSchema.parse(req.body);
+      
+      // Generate more ideas for the specific funnel stage
+      const newIdeas = await aiService.generateMoreIdeas(validatedData, validatedData.projectId);
+      
+      // Get current content package and deduplicate before appending
+      const currentPackage = await storage.getContentPackage(validatedData.projectId);
+      if (currentPackage) {
+        // Create a Set of existing idea IDs for efficient lookup
+        const existingIds = new Set(currentPackage.ideas.map(idea => idea.id));
+        
+        // Filter out any new ideas that have duplicate IDs
+        const uniqueNewIdeas = newIdeas.filter(idea => !existingIds.has(idea.id));
+        
+        const updatedPackage = {
+          ...currentPackage,
+          ideas: [...currentPackage.ideas, ...uniqueNewIdeas],
+        };
+        await storage.saveContentPackage(validatedData.projectId, updatedPackage);
+        
+        // Return only the unique new ideas that were actually added
+        res.json(uniqueNewIdeas);
+      } else {
+        // No existing package, just return all new ideas
+        res.json(newIdeas);
+      }
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        res.status(400).json({ error: "Invalid request data", details: error.errors });
+      } else {
+        console.error("Error generating more ideas:", error);
+        res.status(500).json({ error: "Failed to generate more ideas" });
+      }
     }
   });
 

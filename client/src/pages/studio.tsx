@@ -31,6 +31,7 @@ export default function Studio() {
   const [selectedIdea, setSelectedIdea] = useState<ContentIdea | null>(null);
   const [selectedDuration, setSelectedDuration] = useState<"15" | "30" | "60">("30");
   const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [generatingStage, setGeneratingStage] = useState<string | null>(null);
   const { toast } = useToast();
 
   // Rehydrate selected idea IDs from sessionStorage on mount
@@ -189,6 +190,62 @@ export default function Studio() {
       return response.json();
     },
     enabled: false,
+  });
+
+  const generateMoreIdeasMutation = useMutation({
+    mutationFn: async (funnelStage: string) => {
+      if (!project || !projectId) throw new Error("No project loaded");
+      setGeneratingStage(funnelStage);
+      const response = await apiRequest("POST", "/api/content/generate-more-ideas", {
+        projectId,
+        productName: project.productName,
+        productDescription: project.productDescription,
+        targetAudience: project.targetAudience,
+        brandVoice: project.brandVoice,
+        campaignObjective: project.campaignObjective,
+        contentStyle: project.contentStyle,
+        funnelStage,
+      });
+      return { ideas: (await response.json()) as ContentIdea[], stage: funnelStage };
+    },
+    onSuccess: (data) => {
+      queryClient.setQueryData(["/api/content/package", projectId], (oldPackage: ContentPackage | undefined) => {
+        if (!oldPackage) return oldPackage;
+        
+        // Create a Set of existing idea IDs for efficient deduplication
+        const existingIds = new Set(oldPackage.ideas.map(idea => idea.id));
+        
+        // Filter out any duplicate ideas (defensive, backend should already handle this)
+        const uniqueNewIdeas = data.ideas.filter(idea => !existingIds.has(idea.id));
+        
+        return {
+          ...oldPackage,
+          ideas: [...oldPackage.ideas, ...uniqueNewIdeas],
+        };
+      });
+      
+      const addedCount = data.ideas.length;
+      if (addedCount > 0) {
+        toast({
+          title: "More ideas generated!",
+          description: `${addedCount} new ${data.stage} ${addedCount === 1 ? 'idea' : 'ideas'} added`,
+        });
+      } else {
+        toast({
+          title: "Ideas already exist",
+          description: "The AI generated ideas that already exist in your package. Try again for fresh ideas.",
+        });
+      }
+      setGeneratingStage(null);
+    },
+    onError: (error, funnelStage) => {
+      toast({
+        title: "Generation failed",
+        description: "Failed to generate more ideas. Please try again.",
+        variant: "destructive",
+      });
+      setGeneratingStage(null);
+    },
   });
 
   const generateHashtagsMutation = useMutation({
@@ -580,6 +637,8 @@ export default function Studio() {
                       ideas={contentPackage.ideas}
                       onSelectIdea={handleToggleIdeaSelection}
                       selectedIdeaIds={selectedIdeaIds}
+                      onGenerateMore={(funnelStage) => generateMoreIdeasMutation.mutate(funnelStage)}
+                      generatingStage={generatingStage}
                     />
                   )}
                 </div>
