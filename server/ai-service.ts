@@ -255,16 +255,67 @@ ALL fields are REQUIRED. NO missing values. NO trailing commas. VALID JSON ONLY.
         throw new Error("AI did not return valid scenes array");
       }
       
-      // Validate each scene has required fields
-      for (const scene of scriptData.scenes) {
+      // Validate each scene has required fields and valid timing
+      for (let i = 0; i < scriptData.scenes.length; i++) {
+        const scene = scriptData.scenes[i];
+        
+        // Check timing fields exist and are numbers
         if (typeof scene.timeStart !== 'number' || typeof scene.timeEnd !== 'number') {
           console.error("Invalid scene timing:", scene);
-          throw new Error("Scene missing valid timeStart or timeEnd");
+          throw new Error(`Scene ${i} missing valid timeStart or timeEnd`);
         }
-        if (!scene.visual || !scene.voiceOver) {
-          console.error("Invalid scene content:", scene);
-          throw new Error("Scene missing visual or voiceOver");
+        
+        // Check timing values are valid
+        if (scene.timeStart < 0 || scene.timeEnd < 0) {
+          console.error("Negative timing in scene:", scene);
+          throw new Error(`Scene ${i} has negative timing values`);
         }
+        
+        if (scene.timeEnd <= scene.timeStart) {
+          console.error("Invalid time range in scene:", scene);
+          throw new Error(`Scene ${i} has timeEnd <= timeStart`);
+        }
+        
+        // Check timing doesn't exceed video duration
+        if (scene.timeEnd > duration) {
+          console.error("Scene timing exceeds duration:", scene);
+          throw new Error(`Scene ${i} timeEnd exceeds video duration`);
+        }
+        
+        // Check required text fields are non-empty
+        if (!scene.visual || typeof scene.visual !== 'string' || scene.visual.trim().length === 0) {
+          console.error("Invalid scene visual:", scene);
+          throw new Error(`Scene ${i} missing or empty visual description`);
+        }
+        
+        if (!scene.voiceOver || typeof scene.voiceOver !== 'string' || scene.voiceOver.trim().length === 0) {
+          console.error("Invalid scene voiceOver:", scene);
+          throw new Error(`Scene ${i} missing or empty voiceOver`);
+        }
+      }
+      
+      // Validate first scene starts at 0
+      if (scriptData.scenes[0].timeStart !== 0) {
+        console.error("First scene doesn't start at 0:", scriptData.scenes[0]);
+        throw new Error("First scene must start at timeStart: 0");
+      }
+      
+      // Validate scenes are contiguous (no gaps)
+      for (let i = 1; i < scriptData.scenes.length; i++) {
+        const prevScene = scriptData.scenes[i-1];
+        const currScene = scriptData.scenes[i];
+        
+        if (currScene.timeStart !== prevScene.timeEnd) {
+          console.error("Gap or overlap between scenes:", { prev: prevScene, curr: currScene });
+          throw new Error(`Scene ${i} must start where scene ${i-1} ends (no gaps or overlaps)`);
+        }
+      }
+      
+      // Validate last scene ends at or before duration
+      const lastScene = scriptData.scenes[scriptData.scenes.length - 1];
+      if (lastScene.timeEnd > duration) {
+        console.error("Last scene exceeds duration:", lastScene);
+        throw new Error(`Last scene must end at or before ${duration}s`);
       }
       
       return {
