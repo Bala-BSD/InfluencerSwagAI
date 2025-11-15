@@ -44,7 +44,8 @@ export function AppSidebar() {
         method: "DELETE",
       });
       if (!response.ok) throw new Error("Failed to delete project");
-      return response.json();
+      // 204 No Content has no response body, so don't try to parse JSON
+      return;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/projects"] });
