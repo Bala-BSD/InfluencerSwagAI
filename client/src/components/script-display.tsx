@@ -31,18 +31,11 @@ export function ScriptDisplay({ script, ideaTitle }: ScriptDisplayProps) {
   };
 
   // Defensive check for scenes array
-  console.log("ScriptDisplay received script:", script);
-  console.log("Script type:", typeof script);
-  console.log("Script scenes:", script?.scenes);
-  console.log("Is scenes an array?", Array.isArray(script?.scenes));
-  
   if (!script || !script.scenes || !Array.isArray(script.scenes) || script.scenes.length === 0) {
-    console.error("Script validation failed:", { script, scenes: script?.scenes, isArray: Array.isArray(script?.scenes) });
     return (
       <Card className="p-6" data-testid="card-script-display">
         <div className="text-center text-muted-foreground">
           <p>Script data is incomplete or invalid.</p>
-          <p className="text-xs mt-2">Debug: {JSON.stringify({ hasScript: !!script, hasScenes: !!script?.scenes, scenesLength: script?.scenes?.length })}</p>
         </div>
       </Card>
     );

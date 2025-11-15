@@ -90,10 +90,7 @@ export default function BatchGenerate() {
         contentStyle: project.contentStyle,
         duration: duration, // Send as string "15", "30", or "60"
       });
-      console.log("Script API response:", response);
-      const scriptData = typeof response === 'string' ? JSON.parse(response) : response;
-      console.log("Parsed script data:", scriptData);
-      console.log("Script scenes:", scriptData?.scenes);
+      const scriptData = await response.json();
       return scriptData;
     },
     onSuccess: (data, variables) => {
@@ -120,15 +117,15 @@ export default function BatchGenerate() {
 
   const generateHashtagsMutation = useMutation({
     mutationFn: async (idea: ContentIdea) => {
-      if (!projectId) throw new Error("No project ID");
+      if (!projectId || !project) throw new Error("No project data");
       const response = await apiRequest("POST", "/api/content/hashtags", {
         projectId,
         ideaId: idea.id,
         ideaTitle: idea.title,
-        ideaHook: idea.hook,
-        ideaAngle: idea.angle,
+        productName: project.productName,
+        funnelStage: idea.funnelStage,
       });
-      return typeof response === 'string' ? JSON.parse(response) : response;
+      return await response.json();
     },
     onSuccess: (data, idea) => {
       setGeneratedHashtags(prev => new Map(prev).set(idea.id, data));
