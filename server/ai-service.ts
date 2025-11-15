@@ -202,53 +202,71 @@ Return ONLY valid JSON. No markdown, no explanations.`;
   async generateScript(request: GenerateScriptRequest): Promise<Script> {
     const duration = parseInt(request.duration);
     
-    const prompt = `ACT AS VIDEO DIRECTOR AND SCRIPTWRITER:
+    const prompt = `You are a video script writer. Create a ${duration}-second video script.
 
-CONTENT IDEA: ${request.ideaTitle}
-HOOK: ${request.ideaHook}
-ANGLE: ${request.ideaAngle}
-PRODUCT: ${request.productName}
-DURATION: ${duration} seconds
-STYLE: ${request.contentStyle}
+CONTENT DETAILS:
+- Title: ${request.ideaTitle}
+- Hook: ${request.ideaHook}
+- Angle: ${request.ideaAngle}
+- Product: ${request.productName}
+- Style: ${request.contentStyle}
 
-CREATE TIME-CODED SCRIPT with precise timing breakdown:
-- Hook: ${Math.floor(duration * 0.10)}s (0-${Math.floor(duration * 0.10)}s)
-- Problem/Setup: ${Math.floor(duration * 0.20)}s
-- Solution/Product: ${Math.floor(duration * 0.50)}s
-- CTA: ${Math.floor(duration * 0.12)}s
-- Branding: ${Math.floor(duration * 0.08)}s
+Create ${duration === 15 ? '3-4' : duration === 30 ? '5-6' : '8-10'} scenes with exact timing.
 
-For EACH scene, provide:
-1. Time range (start-end)
-2. VISUAL description (camera angle, action, what viewer sees)
-3. VOICE-OVER script (exact words spoken)
-4. ON-SCREEN TEXT (optional, text overlays)
-5. AUDIO CUE (music/sound effects)
-6. TRANSITION (how to move to next scene)
-
-OUTPUT FORMAT (JSON):
+CRITICAL: Return ONLY valid JSON in exactly this format:
 {
   "scenes": [
     {
       "timeStart": 0,
       "timeEnd": 3,
-      "visual": "Extreme close-up of frustrated face, camera slowly pulls back",
-      "voiceOver": "I was SO done with this problem...",
-      "onScreenText": "The Daily Struggle",
-      "audioCue": "Dramatic pause, then upbeat music starts",
-      "transition": "Quick snap zoom"
+      "visual": "Close-up of person looking confused",
+      "voiceOver": "Ever felt stuck?",
+      "onScreenText": "The Problem",
+      "audioCue": "Dramatic pause",
+      "transition": "Fade"
     }
   ]
 }
 
-Create ${duration === 15 ? '3-4' : duration === 30 ? '5-6' : '8-10'} scenes. Return ONLY valid JSON.`;
+ALL fields are REQUIRED. NO missing values. NO trailing commas. VALID JSON ONLY.`;
 
     try {
       const response = await generateWithRetry(prompt);
-      const jsonMatch = response.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) throw new Error("Invalid JSON response");
       
-      const scriptData = JSON.parse(jsonMatch[0]);
+      // Extract JSON more carefully
+      let jsonMatch = response.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) throw new Error("No JSON found in response");
+      
+      let jsonStr = jsonMatch[0];
+      
+      // Try to parse and validate
+      let scriptData;
+      try {
+        scriptData = JSON.parse(jsonStr);
+      } catch (parseError) {
+        console.error("JSON parse error:", parseError);
+        console.error("Failed JSON string:", jsonStr);
+        throw new Error("Invalid JSON from AI");
+      }
+      
+      // Validate scenes array exists and has content
+      if (!scriptData.scenes || !Array.isArray(scriptData.scenes) || scriptData.scenes.length === 0) {
+        console.error("Invalid script data - missing or empty scenes:", scriptData);
+        throw new Error("AI did not return valid scenes array");
+      }
+      
+      // Validate each scene has required fields
+      for (const scene of scriptData.scenes) {
+        if (typeof scene.timeStart !== 'number' || typeof scene.timeEnd !== 'number') {
+          console.error("Invalid scene timing:", scene);
+          throw new Error("Scene missing valid timeStart or timeEnd");
+        }
+        if (!scene.visual || !scene.voiceOver) {
+          console.error("Invalid scene content:", scene);
+          throw new Error("Scene missing visual or voiceOver");
+        }
+      }
+      
       return {
         id: randomUUID(),
         ideaId: request.ideaId,

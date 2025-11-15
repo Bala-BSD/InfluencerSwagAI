@@ -140,9 +140,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const validatedData = generateScriptRequestSchema.parse(req.body);
       const script = await aiService.generateScript(validatedData);
       
+      console.log("Generated script:", JSON.stringify(script, null, 2));
+      console.log("Script has scenes?", !!script.scenes);
+      console.log("Number of scenes:", script.scenes?.length);
+      
       // Save to storage with projectId
       await storage.saveScript(validatedData.ideaId, validatedData.duration, script, validatedData.projectId);
       
+      console.log("Returning script to client:", JSON.stringify(script, null, 2));
       res.json(script);
     } catch (error) {
       if (error instanceof z.ZodError) {

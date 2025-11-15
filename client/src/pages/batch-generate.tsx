@@ -79,16 +79,22 @@ export default function BatchGenerate() {
 
   const generateScriptMutation = useMutation({
     mutationFn: async ({ idea, duration }: { idea: ContentIdea; duration: string }) => {
-      if (!projectId) throw new Error("No project ID");
+      if (!projectId || !project) throw new Error("No project data");
       const response = await apiRequest("POST", "/api/content/script", {
         projectId,
         ideaId: idea.id,
         ideaTitle: idea.title,
         ideaHook: idea.hook,
         ideaAngle: idea.angle,
-        duration: parseInt(duration),
+        productName: project.productName,
+        contentStyle: project.contentStyle,
+        duration: duration, // Send as string "15", "30", or "60"
       });
-      return typeof response === 'string' ? JSON.parse(response) : response;
+      console.log("Script API response:", response);
+      const scriptData = typeof response === 'string' ? JSON.parse(response) : response;
+      console.log("Parsed script data:", scriptData);
+      console.log("Script scenes:", scriptData?.scenes);
+      return scriptData;
     },
     onSuccess: (data, variables) => {
       setGeneratedScripts(prev => new Map(prev).set(`${variables.idea.id}-${variables.duration}`, data));
